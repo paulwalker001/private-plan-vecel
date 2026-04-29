@@ -1,0 +1,7 @@
+{
+  "name": "Private-Planet-API",
+  "version": "1.1.0",
+  "description": "A private API for the Private Planet project.",
+  "private": true,
+  "license": "MIT"
+}
