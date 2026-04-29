@@ -1,8 +1,11 @@
 export const config = {
   runtime: "edge",
 };
+// The target base URL is taken from the DOMAIN environment variable, which should be set to the URL of the server you want to proxy to. For example, if you want to proxy to https://example.com, set DOMAIN=https://example.com. The code will append the path and query string from the incoming request to this base URL when making the fetch call.
+const TARGET_BASE = (process.env.DOMAIN || "").replace(/\/$/, "");
 
-const HOP_BY_HOP_HEADERS = new Set([
+// These are the headers that will be stripped from the incoming request before forwarding it to the target server. This is important for security and to prevent issues with certain headers that should not be forwarded.
+const STRIP_HEADERS = new Set([
   "host",
   "connection",
   "keep-alive",
@@ -18,68 +21,53 @@ const HOP_BY_HOP_HEADERS = new Set([
   "x-forwarded-port",
 ]);
 
-const BASE_URL = (process.env.DOMAIN || "").replace(/\/$/, "");
-
-export default async function handler(request) {
-  if (!BASE_URL) {
+export default async function handler(req) {
+  if (!TARGET_BASE) {
     return new Response("Misconfigured: DOMAIN is not set", { status: 500 });
   }
 
   try {
-    const incomingUrl = new URL(request.url);
-    const destination = `${BASE_URL}${incomingUrl.pathname}${incomingUrl.search}`;
+    const url = new URL(req.url);
+    const targetUrl = TARGET_BASE + url.pathname + url.search;
 
-    const outgoingHeaders = new Headers();
-    let ip = null;
-
-    for (const [header, value] of request.headers.entries()) {
-      const name = header.toLowerCase();
-
-      if (HOP_BY_HOP_HEADERS.has(name)) continue;
-      if (name.startsWith("x-vercel-")) continue;
-
-      if (name === "x-real-ip") {
-        ip = value;
-        continue;
-      }
-
-      if (name === "x-forwarded-for" && !ip) {
-        ip = value;
-        continue;
-      }
-
-      outgoingHeaders.set(name, value);
+    const headers = new Headers();
+    let clientIp = null;
+    for (const [key, value] of req.headers) {
+      const k = key.toLowerCase();
+      if (STRIP_HEADERS.has(k)) continue;
+      if (k.startsWith("x-vercel-")) continue;
+      if (k === "x-real-ip") { clientIp = value; continue; }
+      if (k === "x-forwarded-for") { if (!clientIp) clientIp = value; continue; }
+      headers.set(k, value);
     }
+    if (clientIp) headers.set("x-forwarded-for", clientIp);
 
-    if (ip) {
-      outgoingHeaders.set("x-forwarded-for", ip);
-    }
+    const method = req.method;
+    const hasBody = method !== "GET" && method !== "HEAD";
 
-    const method = request.method;
-    const options = {
+    const fetchOpts = {
       method,
-      headers: outgoingHeaders,
+      headers,
       redirect: "manual",
     };
-
-    if (!["GET", "HEAD"].includes(method)) {
-      options.body = request.body;
-      options.duplex = "half";
+    if (hasBody) {
+      fetchOpts.body = req.body;
+      fetchOpts.duplex = "half";
     }
 
-    const response = await fetch(destination, options);
+    const upstream = await fetch(targetUrl, fetchOpts);
 
-    const cleanHeaders = new Headers();
-    for (const [key, value] of response.headers.entries()) {
-      if (key.toLowerCase() === "transfer-encoding") continue;
-      cleanHeaders.set(key, value);
+    const respHeaders = new Headers();
+    for (const [k, v] of upstream.headers) {
+      if (k.toLowerCase() === "transfer-encoding") continue;
+      respHeaders.set(k, v);
     }
 
-    return new Response(response.body, {
-      status: response.status,
-      headers: cleanHeaders,
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: respHeaders,
     });
-  } catch (e) {
+  } catch (err) {
     return new Response("Bad Gateway: Tunnel Failed", { status: 502 });
   }
 }
