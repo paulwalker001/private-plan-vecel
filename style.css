@@ -1,0 +1,61 @@
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f6f8;
+    color: #333;
+}
+
+header {
+    background-color: #007BFF;
+    color: white;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+header h1 {
+    margin: 0;
+}
+
+main {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+/* Roadmap Stages */
+.stage {
+    background-color: white;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.stage:hover {
+    transform: translateY(-5px);
+}
+
+.stage h2 {
+    margin: 0;
+    color: #007BFF;
+}
+
+/* Details initially hidden */
+.details {
+    margin-top: 10px;
+    display: none;
+    list-style: disc;
+    padding-left: 20px;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 20px;
+    background-color: #007BFF;
+    color: white;
+}
